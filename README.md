@@ -8,8 +8,7 @@ chmod +x b.sh
 
 sudo pacman -Scc ffmpegthumbnailer 
 
-sudo pacman -S wget htop nano vim
-
+sudo pacman -S 
 sudo pacman -Syu $(pacman -Qnq) 
 
 sudo pacman -Rsnu $(pacman -Qdtq) 
