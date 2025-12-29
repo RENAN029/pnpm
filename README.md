@@ -6,7 +6,7 @@ chmod +x b.sh
 
 ./b.sh
 
-sudo pacman -Scc mise 
+sudo pacman -Scc mise github-cli
 
 sudo pacman -S python-pip rustup
 
