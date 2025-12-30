@@ -25,6 +25,6 @@ echo -e "\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist" | sudo tee
 
 sudo pacman -Syu --noconfirm 
 sudo pacman -Scc --noconfirm
-echo "Dash to Dock; AppIndicator and KStatusNotifierItem Support; GSConnect; Clipboard Indicator; Blur my Shell; TilingS"
+echo "Dash to Dock; AppIndicator and KStatusNotifierItem Support; GSConnect; Clipboard Indicator; Blur my Shell; Tiling"
 cd ..
 rm -rf jq 
