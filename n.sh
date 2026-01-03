@@ -1,10 +1,9 @@
+```bash
 #!/bin/bash
 set -e
 
-# Verificar Arch Linux
 [ ! -f /etc/arch-release ] && echo "Este script é exclusivo para Arch Linux" && exit 1
 
-# Verificar root (exceto em chroot)
 if [ "$EUID" -ne 0 ] && ! grep -q 'arch-chroot' /proc/1/cmdline 2>/dev/null; then
     echo "Execute com sudo: sudo $0"
     exit 1
@@ -28,8 +27,11 @@ S_FLATHUB="$HOME/.flathub_state"
 S_YAY="$HOME/.yay_state"
 S_LAZYMAN="$HOME/.lazyman_state"
 S_ONDEMAND="$HOME/.ondemand_state"
+S_ANANICY="$HOME/.ananicy_state"
+S_ARCHSB="$HOME/.archsb_state"
+S_BTRFS="$HOME/.btrfs_state"
+S_CACHYCONFS="$HOME/.cachyconfs_state"
 
-# ========== Função Shader Booster ==========
 shader_booster() {
     clear
     echo "=== Shader Booster ==="
@@ -115,7 +117,6 @@ shader_booster() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Desktop Environment ==========
 install_cosmic() {
     clear
     echo "=== Instalando Cosmic Desktop ==="
@@ -216,7 +217,6 @@ desktop_environment() {
     fi
 }
 
-# ========== Função LucidGlyph ==========
 detect_lucidglyph() {
     if [ -f "/usr/share/lucidglyph/info" ] || [ -f "/usr/share/freetype-envision/info" ]; then
         return 0
@@ -239,18 +239,14 @@ detect_lucidglyph() {
 uninstall_lucidglyph() {
     echo "Removendo arquivos do LucidGlyph..."
     
-    # Remover arquivos de instalação global
     rm -rf /usr/share/lucidglyph /usr/share/freetype-envision 2>/dev/null
     rm -rf /usr/local/share/lucidglyph /usr/local/share/freetype-envision 2>/dev/null
     
-    # Remover arquivos locais
     rm -rf "$HOME/.local/share/lucidglyph" "$HOME/.local/share/freetype-envision" 2>/dev/null
     
-    # Remover configurações do fontconfig
     find /etc/fonts/conf.d -name "*lucidglyph*" -o -name "*freetype-envision*" 2>/dev/null | xargs rm -f
     find "$HOME/.config/fontconfig/conf.d" -name "*lucidglyph*" -o -name "*freetype-envision*" 2>/dev/null | xargs rm -f
     
-    # Remover variáveis de ambiente
     sed -i '/LUCIDGLYPH\|FREETYPE_ENVISION/d' /etc/environment 2>/dev/null
     sed -i '/LUCIDGLYPH\|FREETYPE_ENVISION/d' "$HOME/.profile" 2>/dev/null
     sed -i '/LUCIDGLYPH\|FREETYPE_ENVISION/d' "$HOME/.bashrc" 2>/dev/null
@@ -326,7 +322,6 @@ lucidglyph() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função AppArmor ==========
 apparmor() {
     clear
     echo "=== AppArmor ==="
@@ -405,7 +400,6 @@ apparmor() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função UFW ==========
 ufw_firewall() {
     clear
     echo "=== UFW Firewall ==="
@@ -481,7 +475,6 @@ ufw_firewall() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função EarlyOOM ==========
 earlyoom() {
     clear
     echo "=== EarlyOOM ==="
@@ -546,7 +539,6 @@ earlyoom() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função DNSMasq ==========
 dnsmasq() {
     clear
     echo "=== DNSMasq ==="
@@ -602,7 +594,6 @@ dnsmasq() {
             pacman -S --noconfirm dnsmasq
             
             cat > /etc/dnsmasq.conf << 'EOF'
-# Configuração básica do DNSMasq
 port=53
 domain-needed
 bogus-priv
@@ -624,7 +615,6 @@ EOF
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Nix Packages ==========
 nix_packages() {
     clear
     echo "=== Nix Packages ==="
@@ -644,18 +634,15 @@ nix_packages() {
                 if [ "$resposta" = "s" ]; then
                     echo "Desinstalando Nix..."
                     
-                    # Primeiro tentar remover via pacman
                     if pacman -Qi nix 2>/dev/null | grep -q "Name"; then
                         pacman -Rns --noconfirm nix 2>/dev/null
                     fi
                     
-                    # Limpar configurações
                     sed -i '/export PATH="\$HOME\/.nix-profile\/bin:\$PATH"/d' ~/.bashrc 2>/dev/null
                     sed -i '/export XDG_DATA_DIRS="\$HOME\/.nix-profile\/share:\$XDG_DATA_DIRS"/d' ~/.profile 2>/dev/null
                     sed -i '/export XDG_DATA_DIRS="\$HOME\/.nix-profile\/share:\$XDG_DATA_DIRS"/d' ~/.bash_profile 2>/dev/null
                     sed -i '/source \${\?HOME\}\?\/.nix-profile\/etc\/profile.d\/nix.sh/d' ~/.bashrc 2>/dev/null
                     
-                    # Remover diretórios do Nix
                     rm -rf ~/.nix-profile ~/.nix-defexpr ~/.nix-channels ~/.config/nix /nix 2>/dev/null
                     
                     rm -f "$S_NIX"
@@ -724,7 +711,6 @@ nix_packages() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Chaotic AUR ==========
 chaotic_aur() {
     clear
     echo "=== Chaotic AUR ==="
@@ -803,7 +789,6 @@ chaotic_aur() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Docker ==========
 docker_install() {
     clear
     echo "=== Docker ==="
@@ -901,7 +886,6 @@ docker_install() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Tailscale ==========
 tailscale_install() {
     clear
     echo "=== Tailscale ==="
@@ -998,7 +982,6 @@ tailscale_install() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Fisher ==========
 fisher_install() {
     clear
     echo "=== Fisher (Fish Shell + Fisher) ==="
@@ -1092,7 +1075,6 @@ fisher_install() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Starship ==========
 starship_install() {
     clear
     echo "=== Starship Prompt ==="
@@ -1112,16 +1094,13 @@ starship_install() {
                 if [ "$resposta" = "s" ]; then
                     echo "Desinstalando Starship..."
                     
-                    # Primeiro tentar remover via pacman se instalado dessa forma
                     if pacman -Qi starship 2>/dev/null | grep -q "Name"; then
                         pacman -Rns --noconfirm starship 2>/dev/null
                     fi
                     
-                    # Remover instalação manual
                     rm -f /usr/local/bin/starship 2>/dev/null
                     rm -f /usr/bin/starship 2>/dev/null
                     
-                    # Limpar configurações
                     sed -i '/eval "\$(starship init bash)"/d' ~/.bashrc 2>/dev/null
                     sed -i '/eval "\$(starship init zsh)"/d' ~/.zshrc 2>/dev/null
                     
@@ -1214,7 +1193,6 @@ starship_install() {
         if [ "$resposta" = "s" ]; then
             echo "Instalando Starship Prompt..."
             
-            # Instalar via pacman se disponível
             if pacman -Si starship 2>/dev/null | grep -q "Name"; then
                 echo "Instalando via pacman..."
                 pacman -S --noconfirm starship
@@ -1261,7 +1239,6 @@ starship_install() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Oh My Bash ==========
 ohmybash_install() {
     clear
     echo "=== Oh My Bash ==="
@@ -1401,7 +1378,6 @@ ohmybash_install() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Flathub ==========
 flathub_install() {
     clear
     echo "=== Flathub ==="
@@ -1493,7 +1469,6 @@ flathub_install() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Yay ==========
 yay_install() {
     clear
     echo "=== Yay AUR Helper ==="
@@ -1598,7 +1573,6 @@ yay_install() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função Lazyman/LazyVim ==========
 lazyman_install() {
     clear
     echo "=== Lazyman / LazyVim ==="
@@ -1779,7 +1753,6 @@ lazyman_install() {
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Função CPU Ondemand Governor ==========
 cpu_ondemand() {
     clear
     echo "=== CPU Ondemand Governor ==="
@@ -1797,19 +1770,16 @@ cpu_ondemand() {
                 read -p "Deseja remover o Ondemand Governor? (s/n): " -n 1 resposta
                 echo
                 if [ "$resposta" = "s" ]; then
-                    # Remover serviço systemd
                     if [ -f /etc/systemd/system/set-ondemand-governor.service ]; then
                         systemctl disable set-ondemand-governor.service --now 2>/dev/null
                         rm -f /etc/systemd/system/set-ondemand-governor.service
                     fi
                     
-                    # Remover configuração do GRUB
                     if [ -f /etc/default/grub.d/01_intel_pstate_disable ]; then
                         rm -f /etc/default/grub.d/01_intel_pstate_disable
                         grub-mkconfig -o /boot/grub/grub.cfg
                     fi
                     
-                    # Remover configuração do systemd-boot
                     if [ -d /etc/kernel/cmdline.d ]; then
                         rm -f /etc/kernel/cmdline.d/10-intel-pstate-disable.conf 2>/dev/null
                         bootctl update 2>/dev/null || true
@@ -1834,7 +1804,6 @@ cpu_ondemand() {
                         echo "Serviço systemd: NÃO INSTALADO"
                     fi
                     
-                    # Verificar governor atual
                     if [ -f /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ]; then
                         echo "Governor atual (CPU0): $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor)"
                     fi
@@ -1860,7 +1829,6 @@ cpu_ondemand() {
         if [ "$resposta" = "s" ]; then
             echo "Instalando CPU Ondemand Governor..."
             
-            # Verificar se o serviço já existe
             if [ -f /etc/systemd/system/set-ondemand-governor.service ]; then
                 echo "Ondemand Governor já está instalado."
                 echo "1" > "$S_ONDEMAND"
@@ -1868,7 +1836,6 @@ cpu_ondemand() {
                 return
             fi
             
-            # Criar serviço systemd para configurar o governor ondemand
             mkdir -p /etc/systemd/system
             cat > /etc/systemd/system/set-ondemand-governor.service << 'EOF'
 [Unit]
@@ -1884,7 +1851,6 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
             
-            # Configurar GRUB para desabilitar intel_pstate se existir
             if ! grep -q "intel_pstate=disable" /proc/cmdline; then
                 if [ -f /boot/grub/grub.cfg ] || [ -f /etc/default/grub ]; then
                     mkdir -p /etc/default/grub.d
@@ -1893,7 +1859,6 @@ EOF
                 fi
             fi
             
-            # Habilitar e iniciar serviço
             systemctl enable set-ondemand-governor.service
             systemctl start set-ondemand-governor.service
             
@@ -1911,7 +1876,471 @@ EOF
     read -p "Pressione Enter para continuar..."
 }
 
-# ========== Menu Principal ==========
+ananicy_install() {
+    clear
+    echo "=== Ananicy-cpp (Auto Nice daemon) ==="
+    
+    if [ -f "$S_ANANICY" ]; then
+        echo "Status: INSTALADO"
+        echo "1) Desinstalar"
+        echo "2) Ver status"
+        echo "3) Reiniciar serviço"
+        echo "4) Voltar"
+        read -p "> " opt
+        
+        case $opt in
+            1)
+                read -p "Deseja remover o Ananicy-cpp? (s/n): " -n 1 resposta
+                echo
+                if [ "$resposta" = "s" ]; then
+                    systemctl disable ananicy-cpp.service --now 2>/dev/null
+                    pacman -Rns --noconfirm ananicy-cpp cachyos-ananicy-rules-git 2>/dev/null || true
+                    rm -f "$S_ANANICY"
+                    echo "Ananicy-cpp removido."
+                fi
+                ;;
+            2)
+                if [ -f "$S_ANANICY" ]; then
+                    echo "Ananicy-cpp instalado via este script desde: $(date -r "$S_ANANICY")"
+                    
+                    if systemctl is-active ananicy-cpp.service &>/dev/null; then
+                        echo "Serviço: ATIVO"
+                        echo ""
+                        echo "Regras instaladas:"
+                        ls /etc/ananicy.d/ 2>/dev/null | head -10
+                    else
+                        echo "Serviço: INATIVO"
+                    fi
+                fi
+                ;;
+            3)
+                systemctl restart ananicy-cpp.service
+                echo "Serviço Ananicy-cpp reiniciado."
+                ;;
+            4)
+                return
+                ;;
+        esac
+    else
+        echo "Status: NÃO INSTALADO"
+        echo "Ananicy-cpp é um daemon para ajustar automaticamente a nice value (prioridade)"
+        echo "de processos com base em regras predefinidas."
+        read -p "Instalar Ananicy-cpp? (s/n): " -n 1 resposta
+        echo
+        
+        if [ "$resposta" = "s" ]; then
+            echo "Instalando Ananicy-cpp..."
+            
+            if ! grep -q "\[chaotic-aur\]" /etc/pacman.conf; then
+                echo "AVISO: Chaotic AUR não está instalado. Instalando primeiro..."
+                chaotic_aur
+                if ! grep -q "\[chaotic-aur\]" /etc/pacman.conf; then
+                    echo "Erro: Chaotic AUR necessário para instalar Ananicy-cpp."
+                    read -p "Pressione Enter para continuar..."
+                    return
+                fi
+            fi
+            
+            pacman -Syu --noconfirm
+            pacman -S --noconfirm ananicy-cpp cachyos-ananicy-rules-git
+            
+            systemctl enable ananicy-cpp.service
+            systemctl start ananicy-cpp.service
+            
+            echo "1" > "$S_ANANICY"
+            echo "Ananicy-cpp instalado com sucesso!"
+            echo "O serviço foi configurado para iniciar automaticamente."
+            echo "Reinicie para aplicações completas."
+        fi
+    fi
+    
+    read -p "Pressione Enter para continuar..."
+}
+
+archsb_install() {
+    clear
+    echo "=== Arch Secure Boot (sbctl) ==="
+    
+    if [ -f "$S_ARCHSB" ]; then
+        echo "Status: INSTALADO"
+        echo "1) Verificar status"
+        echo "2) Criar/renovar chaves"
+        echo "3) Verificar arquivos assinados"
+        echo "4) Desinstalar"
+        echo "5) Voltar"
+        read -p "> " opt
+        
+        case $opt in
+            1)
+                echo "Status do Secure Boot:"
+                sbctl status
+                echo ""
+                echo "Arquivos verificados:"
+                sbctl verify
+                ;;
+            2)
+                read -p "Criar e inscrever novas chaves? (s/n): " -n 1 resposta
+                echo
+                if [ "$resposta" = "s" ]; then
+                    sudo sbctl remove-keys 2>/dev/null || true
+                    sudo sbctl create-keys
+                    sudo sbctl enroll-keys -m -f
+                    
+                    if command -v grub-install &>/dev/null; then
+                        echo "Assinando GRUB..."
+                        sudo grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB --modules="tpm" --disable-shim-lock
+                    fi
+                    
+                    while IFS= read -r line; do
+                        if [[ "$line" =~ ✗ ]]; then
+                            file=$(echo "$line" | awk '{print $2}')
+                            echo "Assinando: $file"
+                            sudo sbctl sign -s "$file"
+                        fi
+                    done < <(sudo sbctl verify)
+                    
+                    echo "Todas as chaves foram criadas e arquivos assinados."
+                    sudo sbctl verify
+                fi
+                ;;
+            3)
+                echo "Verificando arquivos assinados:"
+                sbctl verify
+                ;;
+            4)
+                read -p "Deseja remover o sbctl? (s/n): " -n 1 resposta
+                echo
+                if [ "$resposta" = "s" ]; then
+                    pacman -Rns --noconfirm sbctl efibootmgr 2>/dev/null || true
+                    rm -f "$S_ARCHSB"
+                    echo "sbctl removido."
+                fi
+                ;;
+            5)
+                return
+                ;;
+        esac
+    else
+        echo "Status: NÃO INSTALADO"
+        echo "sbctl é uma ferramenta para gerenciar Secure Boot no Arch Linux."
+        echo ""
+        echo "AVISO: Esta operação envolve a configuração de Secure Boot."
+        echo "Certifique-se de estar em modo Setup Mode no firmware UEFI."
+        read -p "Instalar e configurar Secure Boot? (s/n): " -n 1 resposta
+        echo
+        
+        if [ "$resposta" = "s" ]; then
+            echo "Instalando sbctl e efibootmgr..."
+            
+            pacman -S --noconfirm sbctl efibootmgr
+            
+            sleep 1
+            
+            echo "Verificando status do Secure Boot..."
+            
+            if sbctl status | grep -i 'secure boot' | grep -qi 'disabled'; then
+                if sbctl status | grep -i 'setup mode' | grep -qi 'enabled'; then
+                    echo "Secure Boot desativado e Setup Mode ativado - OK"
+                    
+                    if command -v grub-install &>/dev/null; then
+                        echo "Configurando GRUB para Secure Boot..."
+                        sudo grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB --modules="tpm" --disable-shim-lock
+                    fi
+                    
+                    echo "Criando chaves Secure Boot..."
+                    sudo sbctl create-keys
+                    sudo sbctl enroll-keys -m -f
+                    
+                    echo "Assinando arquivos do sistema..."
+                    while IFS= read -r line; do
+                        if [[ "$line" =~ ✗ ]]; then
+                            file=$(echo "$line" | awk '{print $2}')
+                            echo "Assinando: $file"
+                            sudo sbctl sign -s "$file"
+                        fi
+                    done < <(sudo sbctl verify)
+                    
+                    echo "Verificando assinaturas..."
+                    sudo sbctl verify
+                    
+                    echo "1" > "$S_ARCHSB"
+                    echo ""
+                    echo "Secure Boot configurado com sucesso!"
+                    echo "Reinicie o sistema e ative o Secure Boot no firmware UEFI."
+                else
+                    echo "ERRO: Setup Mode não está ativado."
+                    echo "Entre no firmware UEFI e ative o Setup Mode."
+                    read -p "Pressione Enter para continuar..."
+                    return
+                fi
+            else
+                echo "Secure Boot já está ativado no sistema."
+                echo "1" > "$S_ARCHSB"
+                echo "sbctl instalado para gerenciamento."
+            fi
+        fi
+    fi
+    
+    read -p "Pressione Enter para continuar..."
+}
+
+btrfs_assistant_install() {
+    clear
+    echo "=== Btrfs Assistant ==="
+    
+    if ! findmnt -n -o FSTYPE / | grep -q "btrfs"; then
+        echo "ERRO: Sistema de arquivos raiz não é Btrfs."
+        echo "Esta ferramenta só funciona com Btrfs."
+        read -p "Pressione Enter para continuar..."
+        return
+    fi
+    
+    if [ -f "$S_BTRFS" ]; then
+        echo "Status: INSTALADO"
+        echo "1) Desinstalar"
+        echo "2) Ver status"
+        echo "3) Iniciar Btrfs Assistant"
+        echo "4) Configurar Snapper"
+        echo "5) Voltar"
+        read -p "> " opt
+        
+        case $opt in
+            1)
+                read -p "Deseja remover o Btrfs Assistant? (s/n): " -n 1 resposta
+                echo
+                if [ "$resposta" = "s" ]; then
+                    pacman -Rns --noconfirm btrfs-assistant snapper 2>/dev/null || true
+                    rm -f "$S_BTRFS"
+                    echo "Btrfs Assistant removido."
+                fi
+                ;;
+            2)
+                if [ -f "$S_BTRFS" ]; then
+                    echo "Btrfs Assistant instalado via este script desde: $(date -r "$S_BTRFS")"
+                    
+                    if command -v btrfs-assistant &>/dev/null; then
+                        echo "Btrfs Assistant: INSTALADO"
+                    else
+                        echo "Btrfs Assistant: NÃO INSTALADO"
+                    fi
+                    
+                    if command -v snapper &>/dev/null; then
+                        echo "Snapper: INSTALADO"
+                        echo ""
+                        echo "Configurações Snapper:"
+                        snapper list-configs 2>/dev/null || echo "Nenhuma configuração encontrada"
+                    fi
+                fi
+                ;;
+            3)
+                if command -v btrfs-assistant &>/dev/null; then
+                    echo "Iniciando Btrfs Assistant..."
+                    btrfs-assistant &
+                    echo "Aplicação iniciada em segundo plano."
+                else
+                    echo "Btrfs Assistant não está instalado."
+                fi
+                ;;
+            4)
+                if command -v snapper &>/dev/null; then
+                    echo "Configuração básica do Snapper:"
+                    echo ""
+                    echo "1) Criar configuração padrão"
+                    echo "2) Listar configurações existentes"
+                    echo "3) Criar snapshot manual"
+                    echo "4) Listar snapshots"
+                    read -p "> " snapper_opt
+                    
+                    case $snapper_opt in
+                        1)
+                            echo "Criando configuração padrão para raiz (/)..."
+                            snapper -c root create-config /
+                            echo "Configuração criada."
+                            ;;
+                        2)
+                            echo "Configurações do Snapper:"
+                            snapper list-configs
+                            ;;
+                        3)
+                            read -p "Descrição do snapshot: " description
+                            if [ -n "$description" ]; then
+                                snapper -c root create --description "$description"
+                                echo "Snapshot criado."
+                            else
+                                echo "Descrição não fornecida."
+                            fi
+                            ;;
+                        4)
+                            echo "Snapshots existentes:"
+                            snapper -c root list
+                            ;;
+                    esac
+                else
+                    echo "Snapper não está instalado."
+                fi
+                ;;
+            5)
+                return
+                ;;
+        esac
+    else
+        echo "Status: NÃO INSTALADO"
+        echo "Btrfs Assistant é uma interface gráfica para gerenciar sistemas de arquivos Btrfs."
+        echo "Inclui também o Snapper para gerenciamento de snapshots."
+        read -p "Instalar Btrfs Assistant? (s/n): " -n 1 resposta
+        echo
+        
+        if [ "$resposta" = "s" ]; then
+            echo "Instalando Btrfs Assistant e Snapper..."
+            
+            pacman -S --noconfirm btrfs-assistant snapper
+            
+            if ! snapper list-configs 2>/dev/null | grep -q "root"; then
+                snapper -c root create-config /
+                echo "Configuração padrão do Snapper criada para /"
+            fi
+            
+            echo "1" > "$S_BTRFS"
+            echo "Btrfs Assistant instalado com sucesso!"
+            echo ""
+            echo "Para usar o Btrfs Assistant, execute: btrfs-assistant"
+            echo "Para snapshots automáticos, configure o serviço do Snapper."
+        fi
+    fi
+    
+    read -p "Pressione Enter para continuar..."
+}
+
+cachyconfs_install() {
+    clear
+    echo "=== CachyOS Configurações de Otimização ==="
+    
+    if [ -f "$S_CACHYCONFS" ]; then
+        echo "Status: INSTALADO"
+        echo "1) Verificar configurações"
+        echo "2) Atualizar configurações"
+        echo "3) Remover configurações"
+        echo "4) Voltar"
+        read -p "> " opt
+        
+        case $opt in
+            1)
+                echo "Configurações CachyOS ativas:"
+                echo ""
+                
+                if [ -f /usr/lib/sysctl.d/99-cachyos-settings.conf ]; then
+                    echo "Sysctl configs: INSTALADO"
+                    echo "Conteúdo:"
+                    cat /usr/lib/sysctl.d/99-cachyos-settings.conf | head -20
+                    if [ $(cat /usr/lib/sysctl.d/99-cachyos-settings.conf | wc -l) -gt 20 ]; then
+                        echo "... (mostrando primeiras 20 linhas)"
+                    fi
+                else
+                    echo "Sysctl configs: NÃO INSTALADO"
+                fi
+                
+                echo ""
+                echo "Otimizações do kernel (se aplicável):"
+                cat /proc/cmdline | grep -o "mitigations=[^ ]*" 2>/dev/null || echo "Nenhuma configuração de mitigação encontrada"
+                ;;
+            2)
+                read -p "Atualizar configurações CachyOS? (s/n): " -n 1 resposta
+                echo
+                if [ "$resposta" = "s" ]; then
+                    echo "Atualizando configurações CachyOS..."
+                    
+                    rm -f /usr/lib/sysctl.d/99-cachyos-settings.conf 2>/dev/null
+                    
+                    mkdir -p /usr/lib/sysctl.d/
+                    
+                    cat > /usr/lib/sysctl.d/99-cachyos-settings.conf << 'EOF'
+net.core.rmem_max = 134217728
+net.core.wmem_max = 134217728
+net.ipv4.tcp_rmem = 4096 87380 134217728
+net.ipv4.tcp_wmem = 4096 65536 134217728
+net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_notsent_lowat = 16384
+net.core.default_qdisc = fq
+net.ipv4.tcp_fastopen = 3
+vm.swappiness = 10
+vm.vfs_cache_pressure = 50
+vm.dirty_ratio = 10
+vm.dirty_background_ratio = 5
+vm.dirty_expire_centisecs = 3000
+vm.dirty_writeback_centisecs = 500
+fs.file-max = 2097152
+fs.inotify.max_user_watches = 524288
+kernel.sched_migration_cost_ns = 5000000
+kernel.sched_autogroup_enabled = 1
+kernel.perf_cpu_time_max_percent = 20
+EOF
+                    
+                    sysctl --system
+                    
+                    echo "Configurações atualizadas. Reinicie para aplicar."
+                fi
+                ;;
+            3)
+                read -p "Remover configurações CachyOS? (s/n): " -n 1 resposta
+                echo
+                if [ "$resposta" = "s" ]; then
+                    echo "Removendo configurações CachyOS..."
+                    
+                    rm -f /usr/lib/sysctl.d/99-cachyos-settings.conf 2>/dev/null
+                    rm -f "$S_CACHYCONFS"
+                    
+                    echo "Configurações removidas. Reinicie para aplicar."
+                fi
+                ;;
+            4)
+                return
+                ;;
+        esac
+    else
+        echo "Status: NÃO INSTALADO"
+        echo "Configurações de otimização do CachyOS para melhor desempenho."
+        echo "Inclui ajustes de sysctl para melhorar a responsividade do sistema."
+        read -p "Instalar configurações CachyOS? (s/n): " -n 1 resposta
+        echo
+        
+        if [ "$resposta" = "s" ]; then
+            echo "Instalando configurações CachyOS..."
+            
+            mkdir -p /usr/lib/sysctl.d/
+            
+            cat > /usr/lib/sysctl.d/99-cachyos-settings.conf << 'EOF'
+net.core.rmem_max = 134217728
+net.core.wmem_max = 134217728
+net.ipv4.tcp_rmem = 4096 87380 134217728
+net.ipv4.tcp_wmem = 4096 65536 134217728
+net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_notsent_lowat = 16384
+net.core.default_qdisc = fq
+net.ipv4.tcp_fastopen = 3
+vm.swappiness = 10
+vm.vfs_cache_pressure = 50
+vm.dirty_ratio = 10
+vm.dirty_background_ratio = 5
+vm.dirty_expire_centisecs = 3000
+vm.dirty_writeback_centisecs = 500
+fs.file-max = 2097152
+fs.inotify.max_user_watches = 524288
+kernel.sched_migration_cost_ns = 5000000
+kernel.sched_autogroup_enabled = 1
+kernel.perf_cpu_time_max_percent = 20
+EOF
+            
+            sysctl --system
+            
+            echo "1" > "$S_CACHYCONFS"
+            echo "Configurações CachyOS instaladas com sucesso!"
+            echo "Reinicie para aplicações completas."
+        fi
+    fi
+    
+    read -p "Pressione Enter para continuar..."
+}
+
 main() {
     while true; do
         clear
@@ -1934,7 +2363,11 @@ main() {
         echo "16) Yay AUR Helper"
         echo "17) Lazyman / LazyVim"
         echo "18) CPU Ondemand Governor"
-        echo "19) Sair"
+        echo "19) Ananicy-cpp (Auto Nice)"
+        echo "20) Arch Secure Boot (sbctl)"
+        echo "21) Btrfs Assistant"
+        echo "22) CachyOS Configs"
+        echo "23) Sair"
         read -p "> " opcao
         
         case $opcao in
@@ -1956,10 +2389,15 @@ main() {
             16) yay_install ;;
             17) lazyman_install ;;
             18) cpu_ondemand ;;
-            19) exit 0 ;;
+            19) ananicy_install ;;
+            20) archsb_install ;;
+            21) btrfs_assistant_install ;;
+            22) cachyconfs_install ;;
+            23) exit 0 ;;
             *) ;;
         esac
     done
 }
 
 main
+```
