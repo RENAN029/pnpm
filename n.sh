@@ -20,6 +20,657 @@ cleanup_files() {
     done
 }
 
+cpu_ondemand() {
+    local state_file="$STATE_DIR/cpu_ondemand"
+    
+    if [ -f "$state_file" ] || [ -f "/etc/systemd/system/set-ondemand-governor.service" ]; then
+        if confirm "CPU Ondemand detectado. Desinstalar?"; then
+            echo "Desinstalando CPU Ondemand..."
+            
+            sudo systemctl stop set-ondemand-governor.service 2>/dev/null || true
+            sudo systemctl disable set-ondemand-governor.service 2>/dev/null || true
+            
+            sudo rm -f /etc/systemd/system/set-ondemand-governor.service 2>/dev/null || true
+            sudo rm -f /etc/default/grub.d/01_intel_pstate_disable 2>/dev/null || true
+            sudo rm -f /etc/kernel/cmdline.d/10-intel-pstate-disable.conf 2>/dev/null || true
+            
+            sudo grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true
+            sudo bootctl update 2>/dev/null || true
+            
+            cleanup_files "$state_file"
+            echo "CPU Ondemand desinstalado. Reinicie para aplicar."
+        fi
+    else
+        if confirm "Instalar CPU Ondemand?"; then
+            echo "Instalando CPU Ondemand..."
+            
+            echo '#!/bin/bash
+echo "ondemand" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor' | sudo tee /usr/local/bin/set-ondemand-governor.sh
+            
+            sudo chmod +x /usr/local/bin/set-ondemand-governor.sh
+            
+            echo '[Unit]
+Description=Set CPU governor to ondemand
+After=sysinit.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/set-ondemand-governor.sh
+
+[Install]
+WantedBy=multi-user.target' | sudo tee /etc/systemd/system/set-ondemand-governor.service
+            
+            sudo systemctl enable set-ondemand-governor.service
+            
+            echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} intel_pstate=disable"' | sudo tee /etc/default/grub.d/01_intel_pstate_disable
+            
+            sudo grub-mkconfig -o /boot/grub/grub.cfg
+            
+            touch "$state_file"
+            echo "CPU Ondemand instalado. Reinicie para aplicar."
+        fi
+    fi
+}
+
+swapfile() {
+    local state_file="$STATE_DIR/swapfile"
+    
+    if [ -f "$state_file" ] || swapon --show | grep -q '.'; then
+        if confirm "Swapfile detectado. Desinstalar?"; then
+            echo "Desinstalando Swapfile..."
+            
+            if [ -f "/swapfile" ]; then
+                sudo swapoff /swapfile 2>/dev/null || true
+                sudo rm -f /swapfile 2>/dev/null || true
+                sudo sed -i '/\/swapfile/d' /etc/fstab 2>/dev/null || true
+            fi
+            
+            if [ -f "/home/swapfile" ]; then
+                sudo swapoff /home/swapfile 2>/dev/null || true
+                sudo rm -f /home/swapfile 2>/dev/null || true
+                sudo sed -i '/\/home\/swapfile/d' /etc/fstab 2>/dev/null || true
+            fi
+            
+            if [ -d "/swap" ]; then
+                sudo swapoff /swap/swapfile 2>/dev/null || true
+                sudo rm -rf /swap 2>/dev/null || true
+                sudo sed -i '/\/swap\/swapfile/d' /etc/fstab 2>/dev/null || true
+            fi
+            
+            if [ -d "/home/swap" ]; then
+                sudo swapoff /home/swap/swapfile 2>/dev/null || true
+                sudo rm -rf /home/swap 2>/dev/null || true
+                sudo sed -i '/\/home\/swap\/swapfile/d' /etc/fstab 2>/dev/null || true
+            fi
+            
+            sudo sed -i '/# swapfile/d' /etc/fstab 2>/dev/null || true
+            
+            cleanup_files "$state_file"
+            echo "Swapfile desinstalado."
+        fi
+    else
+        echo "Onde criar o swapfile?"
+        echo "1) / (root)"
+        echo "2) /home"
+        read -p "Opção: " location
+        
+        if confirm "Criar swapfile de 8GB?"; then
+            echo "Criando swapfile..."
+            
+            case $location in
+                1)
+                    if findmnt -n -o FSTYPE / | grep -q "btrfs"; then
+                        sudo btrfs subvolume create /swap 2>/dev/null || true
+                        sudo btrfs filesystem mkswapfile --size 8g --uuid clear /swap/swapfile
+                        sudo swapon /swap/swapfile
+                        echo "/swap/swapfile none swap defaults 0 0" | sudo tee -a /etc/fstab
+                    else
+                        sudo dd if=/dev/zero of=/swapfile bs=1G count=8 status=progress
+                        sudo chmod 600 /swapfile
+                        sudo mkswap /swapfile
+                        sudo swapon /swapfile
+                        echo "/swapfile none swap defaults 0 0" | sudo tee -a /etc/fstab
+                    fi
+                    ;;
+                2)
+                    if findmnt -n -o FSTYPE /home | grep -q "btrfs"; then
+                        sudo btrfs subvolume create /home/swap 2>/dev/null || true
+                        sudo btrfs filesystem mkswapfile --size 8g --uuid clear /home/swap/swapfile
+                        sudo swapon /home/swap/swapfile
+                        echo "/home/swap/swapfile none swap defaults 0 0" | sudo tee -a /etc/fstab
+                    else
+                        sudo dd if=/dev/zero of=/home/swapfile bs=1G count=8 status=progress
+                        sudo chmod 600 /home/swapfile
+                        sudo mkswap /home/swapfile
+                        sudo swapon /home/swapfile
+                        echo "/home/swapfile none swap defaults 0 0" | sudo tee -a /etc/fstab
+                    fi
+                    ;;
+                *)
+                    echo "Opção inválida"
+                    return
+                    ;;
+            esac
+            
+            echo "# swapfile" | sudo tee -a /etc/fstab
+            touch "$state_file"
+            echo "Swapfile criado com sucesso."
+        fi
+    fi
+}
+
+gamescope() {
+    local state_file="$STATE_DIR/gamescope"
+    local pkg_gamescope="gamescope"
+    
+    if [ -f "$state_file" ] || (pacman -Q gamescope &>/dev/null); then
+        if confirm "Gamescope detectado. Desinstalar?"; then
+            echo "Desinstalando Gamescope..."
+            
+            if pacman -Qq gamescope &>/dev/null; then
+                sudo pacman -Rsnu --noconfirm $pkg_gamescope || true
+            fi
+            
+            flatpak uninstall --user -y org.freedesktop.Platform.VulkanLayer.gamescope 2>/dev/null || true
+            
+            cleanup_files "$state_file"
+            echo "Gamescope desinstalado."
+        fi
+    else
+        if confirm "Instalar Gamescope?"; then
+            echo "Instalando Gamescope..."
+            
+            sudo pacman -S --noconfirm $pkg_gamescope
+            
+            if command -v flatpak >/dev/null 2>&1; then
+                flatpak install --user --noninteractive flathub org.freedesktop.Platform.VulkanLayer.gamescope 2>/dev/null || true
+            fi
+            
+            touch "$state_file"
+            echo "Gamescope instalado."
+        fi
+    fi
+}
+
+thumbnailer() {
+    local state_file="$STATE_DIR/thumbnailer"
+    local pkg_thumbnailer="ffmpegthumbnailer"
+    
+    if [ -f "$state_file" ] || (pacman -Q ffmpegthumbnailer &>/dev/null); then
+        if confirm "Thumbnailer detectado. Desinstalar?"; then
+            echo "Desinstalando Thumbnailer..."
+            
+            if pacman -Qq ffmpegthumbnailer &>/dev/null; then
+                sudo pacman -Rsnu --noconfirm $pkg_thumbnailer || true
+            fi
+            
+            cleanup_files "$state_file"
+            echo "Thumbnailer desinstalado."
+        fi
+    else
+        if confirm "Instalar Thumbnailer?"; then
+            echo "Instalando Thumbnailer..."
+            
+            sudo pacman -S --noconfirm $pkg_thumbnailer
+            touch "$state_file"
+            echo "Thumbnailer instalado."
+        fi
+    fi
+}
+
+starship() {
+    local state_file="$STATE_DIR/starship"
+    local pkg_starship="starship"
+    
+    if [ -f "$state_file" ] || (pacman -Q starship &>/dev/null); then
+        if confirm "Starship detectado. Desinstalar?"; then
+            echo "Desinstalando Starship..."
+            
+            if pacman -Qq starship &>/dev/null; then
+                sudo pacman -Rsnu --noconfirm $pkg_starship || true
+            fi
+            
+            sed -i '/starship init/d' ~/.bashrc 2>/dev/null || true
+            sed -i '/starship init/d' ~/.zshrc 2>/dev/null || true
+            
+            if [ -f ~/.config/fish/config.fish ]; then
+                sed -i '/starship init fish/d' ~/.config/fish/config.fish 2>/dev/null || true
+            fi
+            
+            cleanup_files "$state_file"
+            echo "Starship desinstalado."
+        fi
+    else
+        if confirm "Instalar Starship?"; then
+            echo "Instalando Starship..."
+            
+            sudo pacman -S --noconfirm $pkg_starship
+            
+            if [ -f ~/.bashrc ]; then
+                grep -q "starship init" ~/.bashrc || echo -e "\neval \"\$(starship init bash)\"" >> ~/.bashrc
+            fi
+            
+            if [ -f ~/.zshrc ]; then
+                grep -q "starship init" ~/.zshrc || echo -e "\neval \"\$(starship init zsh)\"" >> ~/.zshrc
+            fi
+            
+            if command -v fish &>/dev/null; then
+                mkdir -p ~/.config/fish
+                if [ -f ~/.config/fish/config.fish ]; then
+                    grep -q "starship init fish" ~/.config/fish/config.fish || echo -e "\nstarship init fish | source" >> ~/.config/fish/config.fish
+                else
+                    echo -e "starship init fish | source" >> ~/.config/fish/config.fish
+                fi
+            fi
+            
+            touch "$state_file"
+            echo "Starship instalado com suporte para bash, zsh e fish."
+        fi
+    fi
+}
+
+fisher() {
+    local state_file="$STATE_DIR/fisher"
+    local pkg_fish="fish fisher"
+    
+    if [ -f "$state_file" ] || (pacman -Q fish &>/dev/null); then
+        if confirm "Fisher detectado. Desinstalar?"; then
+            echo "Desinstalando Fisher..."
+            
+            if pacman -Qq fish fisher &>/dev/null; then
+                sudo pacman -Rsnu --noconfirm $pkg_fish || true
+            fi
+            
+            sudo chsh -s "$(which bash)" "$USER" 2>/dev/null || true
+            
+            cleanup_files "$state_file" "$HOME/.config/fish"
+            echo "Fisher desinstalado."
+        fi
+    else
+        if confirm "Instalar Fisher?"; then
+            echo "Instalando Fisher..."
+            
+            sudo pacman -S --noconfirm $pkg_fish
+            sudo chsh -s "$(which fish)" "$USER"
+            
+            if command -v fish >/dev/null 2>&1; then
+                fish -c "fisher install jorgebucaran/fisher" 2>/dev/null || true
+            fi
+            
+            touch "$state_file"
+            echo "Fisher instalado."
+        fi
+    fi
+}
+
+nix_packages() {
+    local state_file="$STATE_DIR/nix_packages"
+    local pkg_nix="nix"
+    
+    if [ -f "$state_file" ] || (pacman -Q nix &>/dev/null) || [ -d "$HOME/.nix-profile" ]; then
+        if confirm "Nix Packages detectado. Desinstalar?"; then
+            echo "Desinstalando Nix Packages..."
+            
+            if pacman -Qq nix &>/dev/null; then
+                sudo pacman -Rsnu --noconfirm $pkg_nix || true
+            fi
+            
+            rm -rf "$HOME/.nix-profile" "$HOME/.nix-defexpr" "$HOME/.nix-channels" 2>/dev/null || true
+            sudo rm -rf /nix /etc/nix /etc/profile.d/nix-daemon.sh 2>/dev/null || true
+            
+            sed -i '/nix-profile/d' ~/.bashrc ~/.profile ~/.bash_profile 2>/dev/null || true
+            sed -i '/XDG_DATA_DIRS.*nix-profile/d' ~/.profile ~/.bash_profile 2>/dev/null || true
+            sed -i '/source.*nix.sh/d' ~/.bashrc 2>/dev/null || true
+            
+            cleanup_files "$state_file"
+            echo "Nix Packages desinstalado."
+        fi
+    else
+        if confirm "Instalar Nix Packages?"; then
+            echo "Instalando Nix Packages..."
+            
+            sudo pacman -S --noconfirm $pkg_nix
+            
+            if [ -f ~/.bashrc ]; then
+                echo -e 'export PATH="$HOME/.nix-profile/bin:$PATH"' >> ~/.bashrc
+            fi
+            
+            if [ -f ~/.profile ]; then
+                echo -e 'export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"' >> ~/.profile
+            fi
+            
+            if [ -f ~/.bash_profile ]; then
+                echo -e 'export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"' >> ~/.bash_profile
+            fi
+            
+            touch "$state_file"
+            echo "Nix Packages instalado."
+        fi
+    fi
+}
+
+flathub() {
+    local state_file="$STATE_DIR/flathub"
+    local pkg_flatpak="flatpak"
+    
+    if [ -f "$state_file" ] || (pacman -Q flatpak &>/dev/null); then
+        if confirm "Flathub detectado. Desinstalar?"; then
+            echo "Desinstalando Flathub..."
+            
+            if pacman -Qq flatpak &>/dev/null; then
+                sudo pacman -Rsnu --noconfirm $pkg_flatpak || true
+            fi
+            
+            rm -rf "$HOME/.local/share/flatpak" 2>/dev/null || true
+            sudo rm -rf /var/lib/flatpak 2>/dev/null || true
+            
+            cleanup_files "$state_file"
+            echo "Flathub desinstalado."
+        fi
+    else
+        if confirm "Instalar Flathub?"; then
+            echo "Instalando Flathub..."
+            
+            sudo pacman -S --noconfirm $pkg_flatpak
+            flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+            
+            touch "$state_file"
+            echo "Flathub instalado."
+        fi
+    fi
+}
+
+ananicy_cpp() {
+    local state_file="$STATE_DIR/ananicy_cpp"
+    local pkg_ananicy="ananicy-cpp cachyos-ananicy-rules-git"
+    
+    if [ -f "$state_file" ] || (pacman -Q ananicy-cpp &>/dev/null); then
+        if confirm "Ananicy-cpp detectado. Desinstalar?"; then
+            echo "Desinstalando Ananicy-cpp..."
+            
+            sudo systemctl stop ananicy-cpp.service 2>/dev/null || true
+            sudo systemctl disable ananicy-cpp.service 2>/dev/null || true
+            
+            if pacman -Qq ananicy-cpp cachyos-ananicy-rules-git &>/dev/null; then
+                sudo pacman -Rsnu --noconfirm $pkg_ananicy || true
+            fi
+            
+            cleanup_files "$state_file"
+            echo "Ananicy-cpp desinstalado."
+        fi
+    else
+        if confirm "Instalar Ananicy-cpp?"; then
+            echo "Instalando Ananicy-cpp..."
+            
+            sudo pacman -S --noconfirm $pkg_ananicy
+            sudo systemctl enable --now ananicy-cpp.service
+            touch "$state_file"
+            echo "Ananicy-cpp instalado. Reinício recomendado."
+        fi
+    fi
+}
+
+hwaccel_flatpak() {
+    local state_file="$STATE_DIR/hwaccel_flatpak"
+    local pkg_flatpak="flatpak"
+    
+    if [ -f "$state_file" ] || (flatpak list | grep -q freedesktop.Platform.VAAPI 2>/dev/null); then
+        if confirm "HW Acceleration Flatpak detectado. Desinstalar?"; then
+            echo "Desinstalando HW Acceleration Flatpak..."
+            
+            flatpak uninstall --user -y freedesktop.Platform.VAAPI 2>/dev/null || true
+            flatpak uninstall --user -y freedesktop.Platform.VAAPI.Intel 2>/dev/null || true
+            
+            cleanup_files "$state_file"
+            echo "HW Acceleration Flatpak desinstalado."
+        fi
+    else
+        if confirm "Instalar HW Acceleration Flatpak?"; then
+            echo "Instalando HW Acceleration Flatpak..."
+            
+            if ! pacman -Q flatpak &>/dev/null; then
+                sudo pacman -S --noconfirm $pkg_flatpak
+                flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+            fi
+            
+            flatpak install --user -y flathub org.freedesktop.Platform.VAAPI.Intel 2>/dev/null || true
+            flatpak override --user --device=all --env=GDK_SCALE=1 --env=GDK_DPI_SCALE=1 2>/dev/null || true
+            touch "$state_file"
+            echo "HW Acceleration Flatpak instalado."
+        fi
+    fi
+}
+
+appimage_fuse() {
+    local state_file="$STATE_DIR/appimage_fuse"
+    local pkg_fuse="fuse2 fuse3"
+    
+    if [ -f "$state_file" ] || (pacman -Q fuse2 &>/dev/null); then
+        if confirm "FUSE para AppImage detectado. Desinstalar?"; then
+            echo "Desinstalando FUSE para AppImage..."
+            
+            if pacman -Qq fuse2 &>/dev/null; then
+                sudo pacman -Rsnu --noconfirm $pkg_fuse || true
+            fi
+            
+            cleanup_files "$state_file"
+            echo "FUSE para AppImage desinstalado."
+        fi
+    else
+        if confirm "Instalar FUSE para AppImage?"; then
+            echo "Instalando FUSE para AppImage..."
+            
+            sudo pacman -S --noconfirm $pkg_fuse
+            touch "$state_file"
+            echo "FUSE para AppImage instalado."
+        fi
+    fi
+}
+
+earlyoom() {
+    local state_file="$STATE_DIR/earlyoom"
+    local pkg_earlyoom="earlyoom"
+    
+    if [ -f "$state_file" ] || (pacman -Q earlyoom &>/dev/null); then
+        if confirm "EarlyOOM detectado. Desinstalar?"; then
+            echo "Desinstalando EarlyOOM..."
+            
+            sudo systemctl stop earlyoom 2>/dev/null || true
+            sudo systemctl disable earlyoom 2>/dev/null || true
+            
+            if pacman -Qq earlyoom &>/dev/null; then
+                sudo pacman -Rsnu --noconfirm $pkg_earlyoom || true
+            fi
+            
+            cleanup_files "$state_file"
+            echo "EarlyOOM desinstalado."
+        fi
+    else
+        if confirm "Instalar EarlyOOM?"; then
+            echo "Instalando EarlyOOM..."
+            
+            sudo pacman -S --noconfirm $pkg_earlyoom
+            sudo systemctl enable earlyoom
+            sudo systemctl start earlyoom
+            
+            touch "$state_file"
+            echo "EarlyOOM instalado."
+        fi
+    fi
+}
+
+gamemode() {
+    local state_file="$STATE_DIR/gamemode"
+    local pkg_gamemode="gamemode lib32-gamemode"
+    
+    if [ -f "$state_file" ] || (pacman -Q gamemode &>/dev/null); then
+        if confirm "Gamemode detectado. Desinstalar?"; then
+            echo "Desinstalando Gamemode..."
+            
+            if pacman -Qq gamemode &>/dev/null; then
+                sudo pacman -Rsnu --noconfirm $pkg_gamemode || true
+            fi
+            
+            cleanup_files "$state_file"
+            echo "Gamemode desinstalado."
+        fi
+    else
+        if confirm "Instalar Gamemode?"; then
+            echo "Instalando Gamemode..."
+            
+            sudo pacman -S --noconfirm $pkg_gamemode
+            touch "$state_file"
+            echo "Gamemode instalado."
+        fi
+    fi
+}
+
+oh_my_bash() {
+    local state_file="$STATE_DIR/oh_my_bash"
+    local osh_dir="$HOME/.oh-my-bash"
+    
+    if [ -f "$state_file" ] || [ -d "$osh_dir" ]; then
+        if confirm "Oh My Bash detectado. Desinstalar?"; then
+            echo "Desinstalando Oh My Bash..."
+            
+            if [ -d "$osh_dir" ]; then
+                yes | "$osh_dir"/tools/uninstall.sh 2>/dev/null || true
+            fi
+            
+            cleanup_files "$state_file"
+            echo "Oh My Bash desinstalado."
+        fi
+    else
+        if confirm "Instalar Oh My Bash?"; then
+            echo "Instalando Oh My Bash..."
+            
+            bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)" --unattended
+            touch "$state_file"
+            echo "Oh My Bash instalado."
+        fi
+    fi
+}
+
+nvim_basic() {
+    local state_file="$STATE_DIR/nvim_basic"
+    local pkg_neovim="neovim"
+    
+    if [ -f "$state_file" ] || (pacman -Q neovim &>/dev/null); then
+        if confirm "NeoVim básico detectado. Desinstalar?"; then
+            echo "Desinstalando NeoVim básico..."
+            
+            sudo pacman -Rsnu --noconfirm $pkg_neovim || true
+            cleanup_files "$state_file"
+            echo "NeoVim básico desinstalado."
+        fi
+    else
+        if confirm "Instalar NeoVim básico?"; then
+            echo "Instalando NeoVim básico..."
+            
+            sudo pacman -S --noconfirm $pkg_neovim
+            touch "$state_file"
+            echo "NeoVim básico instalado."
+        fi
+    fi
+}
+
+nvim_lazyman() {
+    local state_file="$STATE_DIR/nvim_lazyman"
+    local pkg_neovim="neovim git"
+    local lazyman_dir="$HOME/.config/nvim-Lazyman"
+    
+    if [ -f "$state_file" ] || [ -d "$lazyman_dir" ]; then
+        if confirm "Lazyman detectado. Desinstalar?"; then
+            echo "Desinstalando Lazyman..."
+            
+            cleanup_files "$state_file" "$lazyman_dir"
+            echo "Lazyman desinstalado."
+        fi
+    else
+        if confirm "Instalar Lazyman?"; then
+            echo "Instalando Lazyman..."
+            
+            sudo pacman -S --noconfirm $pkg_neovim
+            
+            git clone --depth=1 https://github.com/doctorfree/nvim-lazyman "$lazyman_dir"
+            
+            echo "Selecione a configuração:"
+            echo "1) Abstract"
+            echo "2) AstroNvimPlus"
+            echo "3) Basic IDE"
+            echo "4) Ecovim"
+            echo "5) LazyVim"
+            echo "6) LunarVim"
+            echo "7) MagicVim"
+            echo "8) NvChad"
+            echo "9) SpaceVim"
+            read -p "Opção (1-9): " config_opcao
+            
+            case $config_opcao in
+                1) "$lazyman_dir"/lazyman.sh -g -z ;;
+                2) "$lazyman_dir"/lazyman.sh -a -z ;;
+                3) "$lazyman_dir"/lazyman.sh -j -z ;;
+                4) "$lazyman_dir"/lazyman.sh -e -z ;;
+                5) "$lazyman_dir"/lazyman.sh -l -z ;;
+                6) "$lazyman_dir"/lazyman.sh -v -z ;;
+                7) "$lazyman_dir"/lazyman.sh -m -z ;;
+                8) "$lazyman_dir"/lazyman.sh -c -z ;;
+                9) "$lazyman_dir"/lazyman.sh -s -z ;;
+                *) echo "Opção inválida" ;;
+            esac
+            
+            touch "$state_file"
+            echo "Lazyman instalado."
+        fi
+    fi
+}
+
+nvim_lazyvim() {
+    local state_file="$STATE_DIR/nvim_lazyvim"
+    local nvim_dir="$HOME/.config/nvim"
+    
+    if [ -f "$state_file" ] || [ -d "$nvim_dir" ]; then
+        if confirm "LazyVim detectado. Desinstalar?"; then
+            echo "Desinstalando LazyVim..."
+            
+            cleanup_files "$state_file" "$nvim_dir"
+            echo "LazyVim desinstalado."
+        fi
+    else
+        if confirm "Instalar LazyVim?"; then
+            echo "Instalando LazyVim..."
+            
+            git clone https://github.com/LazyVim/starter "$nvim_dir"
+            rm -rf "$nvim_dir/.git"
+            touch "$state_file"
+            echo "LazyVim instalado."
+        fi
+    fi
+}
+
+nvim() {
+    while true; do
+        clear
+        echo "=== NeoVim ==="
+        echo "1) NeoVim Básico"
+        echo "2) Lazyman"
+        echo "3) LazyVim Direto"
+        echo "4) Voltar"
+        echo
+        read -p "Selecione uma opção: " opcao
+        
+        case $opcao in
+            1) clear; nvim_basic ;;
+            2) clear; nvim_lazyman ;;
+            3) clear; nvim_lazyvim ;;
+            4) return ;;
+            *) ;;
+        esac
+        
+        [ "$opcao" -ge 1 ] && [ "$opcao" -le 3 ] && read -p "Pressione Enter para continuar..."
+    done
+}
+
 de_cosmic() {
     local state_file="$STATE_DIR/de_cosmic"
     local pkg_base="noto-fonts noto-fonts-cjk noto-fonts-emoji ttf-noto-nerd noto-fonts-extra ttf-jetbrains-mono"
@@ -144,6 +795,7 @@ de() {
 
 apparmor() {
     local state_file="$STATE_DIR/apparmor"
+    local pkg_apparmor="apparmor"
     
     if [ -f "$state_file" ] || (pacman -Q apparmor &>/dev/null); then
         if confirm "AppArmor detectado. Desinstalar?"; then
@@ -162,7 +814,7 @@ apparmor() {
             fi
             
             if pacman -Qq apparmor &>/dev/null; then
-                sudo pacman -Rsnu --noconfirm apparmor || true
+                sudo pacman -Rsnu --noconfirm $pkg_apparmor || true
             fi
             
             cleanup_files "$state_file"
@@ -172,7 +824,7 @@ apparmor() {
         if confirm "Instalar AppArmor?"; then
             echo "Instalando AppArmor..."
             
-            sudo pacman -S --noconfirm apparmor
+            sudo pacman -S --noconfirm $pkg_apparmor
             
             if pacman -Qq grub &>/dev/null; then
                 echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} apparmor=1 security=apparmor"' | sudo tee /etc/default/grub.d/99-apparmor.cfg
@@ -192,6 +844,7 @@ apparmor() {
 
 chaotic_aur() {
     local state_file="$STATE_DIR/chaotic_aur"
+    local pkg_chaotic="chaotic-keyring chaotic-mirrorlist"
     
     if [ -f "$state_file" ] || (pacman -Q chaotic-keyring &>/dev/null && pacman -Q chaotic-mirrorlist &>/dev/null); then
         if confirm "Chaotic AUR detectado. Desinstalar?"; then
@@ -200,7 +853,7 @@ chaotic_aur() {
             sudo sed -i '/\[chaotic-aur\]/,/^$/d' /etc/pacman.conf 2>/dev/null || true
             
             if pacman -Qq chaotic-keyring chaotic-mirrorlist &>/dev/null; then
-                sudo pacman -Rsnu --noconfirm chaotic-keyring chaotic-mirrorlist || true
+                sudo pacman -Rsnu --noconfirm $pkg_chaotic || true
             fi
             
             sudo pacman-key --delete 3056513887B78AEB 2>/dev/null || true
@@ -237,6 +890,7 @@ chaotic_aur() {
 
 dnsmasq() {
     local state_file="$STATE_DIR/dnsmasq"
+    local pkg_dnsmasq="dnsmasq"
     
     if [ -f "$state_file" ] || (pacman -Q dnsmasq &>/dev/null); then
         if confirm "DNSMasq detectado. Desinstalar?"; then
@@ -246,7 +900,7 @@ dnsmasq() {
             sudo systemctl disable dnsmasq 2>/dev/null || true
             
             if pacman -Qq dnsmasq &>/dev/null; then
-                sudo pacman -Rsnu --noconfirm dnsmasq || true
+                sudo pacman -Rsnu --noconfirm $pkg_dnsmasq || true
             fi
             
             sudo rm -rf /etc/dnsmasq.d /etc/dnsmasq.conf 2>/dev/null || true
@@ -257,7 +911,7 @@ dnsmasq() {
         if confirm "Instalar DNSMasq?"; then
             echo "Instalando DNSMasq..."
             
-            sudo pacman -S --noconfirm dnsmasq
+            sudo pacman -S --noconfirm $pkg_dnsmasq
             sudo systemctl enable dnsmasq
             touch "$state_file"
             echo "DNSMasq instalado."
@@ -435,30 +1089,60 @@ main() {
     while true; do
         clear
         echo "=== Scripts para Arch Linux ==="
-        echo "1) Ambiente Desktop"
-        echo "2) AppArmor"
-        echo "3) Chaotic AUR"
-        echo "4) DNSMasq"
-        echo "5) LucidGlyph"
-        echo "6) Shader Booster"
-        echo "7) UFW"
-        echo "8) Sair"
+        echo "1) Ambientes Desktop"
+        echo "2) Ananicy-cpp"
+        echo "3) AppArmor"
+        echo "4) AppImage FUSE"
+        echo "5) Chaotic AUR"
+        echo "6) CPU Ondemand"
+        echo "7) DNSMasq"
+        echo "8) EarlyOOM"
+        echo "9) Fisher"
+        echo "10) Flathub"
+        echo "11) Gamemode"
+        echo "12) Gamescope"
+        echo "13) HW Acceleration Flatpak"
+        echo "14) LucidGlyph"
+        echo "15) NeoVim"
+        echo "16) Nix Packages"
+        echo "17) Oh My Bash"
+        echo "18) Shader Booster"
+        echo "19) Starship"
+        echo "20) Swapfile"
+        echo "21) Thumbnailer"
+        echo "22) UFW"
+        echo "23) Sair"
         echo
         read -p "Selecione uma opção: " opcao
         
         case $opcao in
             1) clear; de ;;
-            2) clear; apparmor ;;
-            3) clear; chaotic_aur ;;
-            4) clear; dnsmasq ;;
-            5) clear; lucidglyph ;;
-            6) clear; shader_booster ;;
-            7) clear; ufw ;;
-            8) exit 0 ;;
+            2) clear; ananicy_cpp ;;
+            3) clear; apparmor ;;
+            4) clear; appimage_fuse ;;
+            5) clear; chaotic_aur ;;
+            6) clear; cpu_ondemand ;;
+            7) clear; dnsmasq ;;
+            8) clear; earlyoom ;;
+            9) clear; fisher ;;
+            10) clear; flathub ;;
+            11) clear; gamemode ;;
+            12) clear; gamescope ;;
+            13) clear; hwaccel_flatpak ;;
+            14) clear; lucidglyph ;;
+            15) clear; nvim ;;
+            16) clear; nix_packages ;;
+            17) clear; oh_my_bash ;;
+            18) clear; shader_booster ;;
+            19) clear; starship ;;
+            20) clear; swapfile ;;
+            21) clear; thumbnailer ;;
+            22) clear; ufw ;;
+            23) exit 0 ;;
             *) ;;
         esac
         
-        [ "$opcao" -ge 1 ] && [ "$opcao" -le 7 ] && read -p "Pressione Enter para continuar..."
+        [ "$opcao" -ge 1 ] && [ "$opcao" -le 22 ] && read -p "Pressione Enter para continuar..."
     done
 }
 
